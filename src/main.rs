@@ -1,9 +1,12 @@
 #![forbid(unsafe_code)]
 #![deny(rust_2018_idioms)]
 
-use std::{env, net::Ipv4Addr, path::PathBuf, time::Duration};
+use std::{convert::Infallible, env, net::Ipv4Addr, path::PathBuf, time::Duration};
 
-use axum::Router;
+use axum::{
+    http::{header::CACHE_CONTROL, HeaderValue, Response},
+    Router,
+};
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -30,6 +33,16 @@ async fn main() {
     .layer(
         ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_secs(10)))
+            .and_then(|mut res: Response<_>| async {
+                if res.status().is_success() {
+                    res.headers_mut().insert(
+                        CACHE_CONTROL,
+                        HeaderValue::from_static("max-age=600, public"),
+                    );
+                }
+
+                Ok::<_, Infallible>(res)
+            })
             .layer(
                 CorsLayer::new()
                     .allow_origin(AllowOrigin::any())
